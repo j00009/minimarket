@@ -11,7 +11,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { APP_GUARD } from '@nestjs/core';
-import { AuthGuard } from './auth/auth.guard';
+import { JwtAuthGuard } from './auth/jwt.guard';
 import { RolesGuard } from './auth/roles.guard';
 import { PermissionsGuard } from './auth/permissions.guard';
 
@@ -35,7 +35,7 @@ import { PermissionsGuard } from './auth/permissions.guard';
   controllers: [AppController],
   providers: [
     AppService,
-    { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
   ],

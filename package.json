@@ -2,22 +2,22 @@
   "name": "minimarket",
   "private": true,
   "packageManager": "pnpm@9.15.9",
-  "scripts": {
-    "setup": "pnpm install && pnpm run db:up && pnpm run migrate && pnpm run db:seed",
-    "dev:api": "pnpm --dir apps/api run dev",
-    "dev:web": "pnpm --dir apps/web run dev",
-    "start:dev": "docker compose -f infra/docker-compose.yml up -d && pnpm -r --parallel --filter api --filter web run dev",
-    "dev": "pnpm run start:dev",
-    "db:up": "docker compose -f infra/docker-compose.yml up -d",
-    "db:seed": "pnpm --dir apps/api db:seed",
-    "migrate": "pnpm --dir apps/api exec prisma migrate dev",
-    "migrate:status": "pnpm --dir apps/api exec prisma migrate status",
-    "prisma:validate": "pnpm --dir apps/api exec prisma validate",
-    "api:build": "pnpm --dir apps/api run build",
-    "web:build": "pnpm --dir apps/web run build",
-    "build": "pnpm run api:build && pnpm run web:build",
-    "format": "pnpm --dir apps/api run format && pnpm --dir apps/api exec prettier --write \"../web/src/**/*.{ts,tsx,css}\"",
-    "test": "pnpm --dir apps/api test -- --runInBand",
-    "test:e2e": "pnpm --dir apps/api run test:e2e"
-  }
+    "scripts": {
+      "setup": "pnpm install && pnpm run db:up && pnpm run migrate && pnpm run db:seed",
+      "dev:api": "pnpm --dir apps/api run dev",
+      "dev:web": "pnpm --dir apps/web run dev",
+      "start:dev": "docker compose -f infra/docker-compose.yml up -d && pnpm -r --parallel --filter api --filter web run dev",
+      "dev": "pnpm run start:dev",
+      "db:up": "docker compose -f infra/docker-compose.yml up -d",
+      "db:seed": "pnpm --dir apps/api db:seed",
+      "migrate": "pnpm --dir apps/api exec prisma migrate dev",
+      "migrate:status": "pnpm --dir apps/api exec prisma migrate status",
+      "prisma:validate": "pnpm --dir apps/api exec prisma validate",
+      "api:build": "pnpm --dir apps/api run build",
+      "web:build": "pnpm --dir apps/web run build",
+      "build": "pnpm run api:build && pnpm run web:build",
+      "format": "pnpm --dir apps/api run format && pnpm --dir apps/api exec prettier --write \"../web/src/**/*.{ts,tsx,css}\"",
+      "test": "pnpm --dir apps/api test -- --runInBand",
+      "test:e2e": "pnpm --dir apps/api run test:e2e"
+    }
 }

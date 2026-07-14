@@ -10,26 +10,30 @@ import {
   ApiParam,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { ProductosService } from './productos.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { ErrorResponseDto, ProductoResponseDto, ProductosPaginatedResponseDto } from '../docs/openapi-dtos';
+import { Public } from '../auth/public.decorator';
 
 @Controller('productos')
 @ApiTags('productos')
-@ApiBearerAuth()
 export class ProductosController {
   constructor(private readonly productosService: ProductosService) {}
 
   @Post()
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Crear producto' })
+  @ApiUnauthorizedResponse({ description: 'Token ausente o invalido', type: ErrorResponseDto })
   @ApiCreatedResponse({ description: 'Producto creado', type: ProductoResponseDto })
   @ApiBadRequestResponse({ description: 'Categoria, proveedor o datos invalidos', type: ErrorResponseDto })
   create(@Body() dto: CreateProductoDto) {
     return this.productosService.create(dto);
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Listar productos con busqueda, filtros y paginacion' })
   @ApiQuery({ name: 'q', required: false, description: 'Busca por nombre con pg_trgm, codigo de barra exacto o ID', example: 'coca' })
@@ -71,6 +75,7 @@ export class ProductosController {
     });
   }
 
+  @Public()
   @Get('alertas/stock-bajo')
   @ApiOperation({ summary: 'Listar productos con stock bajo' })
   @ApiOkResponse({ description: 'Productos cuyo stock es menor o igual al stock minimo', type: [ProductoResponseDto] })
@@ -78,6 +83,7 @@ export class ProductosController {
     return this.productosService.getStockBajo();
   }
 
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Obtener producto por ID' })
   @ApiParam({ name: 'id', type: Number, example: 1 })
@@ -87,8 +93,10 @@ export class ProductosController {
     return this.productosService.findOne(id);
   }
 
+  @ApiBearerAuth()
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar producto' })
+  @ApiUnauthorizedResponse({ description: 'Token ausente o invalido', type: ErrorResponseDto })
   @ApiParam({ name: 'id', type: Number, example: 1 })
   @ApiOkResponse({ description: 'Producto actualizado', type: ProductoResponseDto })
   @ApiBadRequestResponse({ description: 'Categoria, proveedor o datos invalidos', type: ErrorResponseDto })
@@ -97,8 +105,10 @@ export class ProductosController {
     return this.productosService.update(id, dto);
   }
 
+  @ApiBearerAuth()
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar producto' })
+  @ApiUnauthorizedResponse({ description: 'Token ausente o invalido', type: ErrorResponseDto })
   @ApiParam({ name: 'id', type: Number, example: 1 })
   @ApiOkResponse({ description: 'Producto eliminado', type: ProductoResponseDto })
   @ApiNotFoundResponse({ description: 'Producto no encontrado', type: ErrorResponseDto })

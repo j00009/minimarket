@@ -10,26 +10,30 @@ import {
   ApiParam,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { ProveedoresService } from './proveedores.service';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
 import { ErrorResponseDto, ProveedorDetailDto, ProveedorListItemDto, ProveedorResponseDto } from '../docs/openapi-dtos';
+import { Public } from '../auth/public.decorator';
 
 @Controller('proveedores')
 @ApiTags('proveedores')
-@ApiBearerAuth()
 export class ProveedoresController {
   constructor(private readonly proveedoresService: ProveedoresService) {}
 
   @Post()
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Crear proveedor' })
+  @ApiUnauthorizedResponse({ description: 'Token ausente o invalido', type: ErrorResponseDto })
   @ApiCreatedResponse({ description: 'Proveedor creado', type: ProveedorResponseDto })
   @ApiBadRequestResponse({ description: 'Datos invalidos', type: ErrorResponseDto })
   create(@Body() dto: CreateProveedorDto) {
     return this.proveedoresService.create(dto);
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Listar proveedores' })
   @ApiQuery({ name: 'nombre', required: false, description: 'Filtra por nombre', example: 'central' })
@@ -38,6 +42,7 @@ export class ProveedoresController {
     return this.proveedoresService.findAll(nombre);
   }
 
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Obtener proveedor por ID' })
   @ApiParam({ name: 'id', type: Number, example: 1 })
@@ -47,8 +52,10 @@ export class ProveedoresController {
     return this.proveedoresService.findOne(id);
   }
 
+  @ApiBearerAuth()
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar proveedor' })
+  @ApiUnauthorizedResponse({ description: 'Token ausente o invalido', type: ErrorResponseDto })
   @ApiParam({ name: 'id', type: Number, example: 1 })
   @ApiOkResponse({ description: 'Proveedor actualizado', type: ProveedorResponseDto })
   @ApiBadRequestResponse({ description: 'Datos invalidos', type: ErrorResponseDto })
@@ -57,8 +64,10 @@ export class ProveedoresController {
     return this.proveedoresService.update(id, dto);
   }
 
+  @ApiBearerAuth()
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar proveedor' })
+  @ApiUnauthorizedResponse({ description: 'Token ausente o invalido', type: ErrorResponseDto })
   @ApiParam({ name: 'id', type: Number, example: 1 })
   @ApiOkResponse({ description: 'Proveedor eliminado', type: ProveedorResponseDto })
   @ApiNotFoundResponse({ description: 'Proveedor no encontrado', type: ErrorResponseDto })

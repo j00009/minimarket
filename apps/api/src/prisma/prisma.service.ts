@@ -16,6 +16,7 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
   get rol() { return this.client.rol; }
   get permiso() { return this.client.permiso; }
   get rolPermiso() { return this.client.rolPermiso; }
+  get refreshToken() { return this.client.refreshToken; } 
 
   async $queryRaw<T = unknown>(query: Prisma.Sql): Promise<T> {
     return this.client.$queryRaw<T>(query);

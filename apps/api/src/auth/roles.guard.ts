@@ -8,10 +8,15 @@ export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const roles = this.reflector.getAllAndOverride<RolUsuario[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const roles = this.reflector.getAllAndOverride<RolUsuario[]>(
+      ROLES_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    // If the metadata is not present on handler or class, this guard is opt-in.
+    if (typeof roles === 'undefined') return true;
+
+    // If metadata is present but empty, consider it as no restrictions.
     if (!roles?.length) return true;
 
     const user = context.switchToHttp().getRequest().user as AuthUser | undefined;

@@ -95,6 +95,19 @@ export class VentasService {
     });
   }
 
+  // Sin filtro por userId a proposito: solo se llega aqui si RolesGuard ya
+  // valido que el usuario tiene rol ADMIN o SUPER_ADMIN (ver @Roles en el
+  // controller). Muestra las ventas de TODOS los usuarios.
+  async findAllAdmin() {
+    return this.prisma.venta.findMany({
+      include: {
+        detalles: { include: { producto: { select: { nombre: true } } } },
+        user: { select: { id: true, nombre: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async findOne(id: number, user: AuthUser) {
     const venta = await this.prisma.venta.findFirst({
       where: { id, userId: user.sub },
@@ -164,4 +177,5 @@ export class VentasService {
 
     throw new BadRequestException('PIN de autorización inválido.');
   }
+  
 }

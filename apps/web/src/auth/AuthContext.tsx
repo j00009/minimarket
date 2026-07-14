@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { TOKEN_KEY, apiFetch } from '../api/client';
+import { TOKEN_KEY, REFRESH_TOKEN_KEY, apiFetch } from '../api/client';
 
 export type RolUsuario = 'ADMIN' | 'SUPERVISOR' | 'SUPER_ADMIN' | 'VENDEDOR';
 export type PermisoUsuario = 'dashboard.ver' | 'usuarios.gestionar' | 'stock.autorizar';
@@ -13,7 +13,8 @@ export type AuthUser = {
 };
 
 type LoginResponse = {
-  accessToken: string;
+  access_token: string;
+  refresh_token: string;
   user: AuthUser;
 };
 
@@ -53,11 +54,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
-      localStorage.setItem(TOKEN_KEY, response.accessToken);
+      localStorage.setItem(TOKEN_KEY, response.access_token);
+      localStorage.setItem(REFRESH_TOKEN_KEY, response.refresh_token);
       setUser(response.user);
     },
     logout() {
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
       setUser(null);
     },
   }), [user, loading]);

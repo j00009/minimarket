@@ -112,7 +112,22 @@ model Usuario {
   
   ventas              Venta[]
 
+  refreshTokens       RefreshToken[] 
   @@index([rolId])
+}
+
+model RefreshToken {
+  id                String   @id @default(uuid()) // JTI
+  tokenHash         String
+  expiresAt         DateTime
+  revoked           Boolean  @default(false)
+  replacedByTokenId String?
+  usuarioId         Int
+  createdAt         DateTime @default(now())
+
+  usuario           Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
 }
 
 model Rol {

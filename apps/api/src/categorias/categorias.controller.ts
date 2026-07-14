@@ -10,20 +10,23 @@ import {
   ApiParam,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { CategoriasService } from './categorias.service';
 import { CreateCategoriaDto } from './dto/create-categoria.dto';
 import { UpdateCategoriaDto } from './dto/update-categoria.dto';
 import { CategoriaDetailDto, CategoriaListItemDto, CategoriaResponseDto, ErrorResponseDto } from '../docs/openapi-dtos';
+import { Public } from '../auth/public.decorator';
 
 @Controller('categorias')
 @ApiTags('categorias')
-@ApiBearerAuth()
 export class CategoriasController {
   constructor(private readonly categoriasService: CategoriasService) {}
 
   @Post()
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Crear categoria' })
+  @ApiUnauthorizedResponse({ description: 'Token ausente o invalido', type: ErrorResponseDto })
   @ApiCreatedResponse({ description: 'Categoria creada', type: CategoriaResponseDto })
   @ApiBadRequestResponse({ description: 'Datos invalidos', type: ErrorResponseDto })
   @ApiConflictResponse({ description: 'La categoria ya existe', type: ErrorResponseDto })
@@ -31,6 +34,7 @@ export class CategoriasController {
     return this.categoriasService.create(dto);
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Listar categorias' })
   @ApiQuery({ name: 'nombre', required: false, description: 'Filtra por nombre', example: 'bebidas' })
@@ -39,6 +43,7 @@ export class CategoriasController {
     return this.categoriasService.findAll(nombre);
   }
 
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Obtener categoria por ID' })
   @ApiParam({ name: 'id', type: Number, example: 1 })
@@ -48,8 +53,10 @@ export class CategoriasController {
     return this.categoriasService.findOne(id);
   }
 
+  @ApiBearerAuth()
   @Patch(':id')
   @ApiOperation({ summary: 'Actualizar categoria' })
+  @ApiUnauthorizedResponse({ description: 'Token ausente o invalido', type: ErrorResponseDto })
   @ApiParam({ name: 'id', type: Number, example: 1 })
   @ApiOkResponse({ description: 'Categoria actualizada', type: CategoriaResponseDto })
   @ApiBadRequestResponse({ description: 'Datos invalidos', type: ErrorResponseDto })
@@ -58,8 +65,10 @@ export class CategoriasController {
     return this.categoriasService.update(id, dto);
   }
 
+  @ApiBearerAuth()
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar categoria' })
+  @ApiUnauthorizedResponse({ description: 'Token ausente o invalido', type: ErrorResponseDto })
   @ApiParam({ name: 'id', type: Number, example: 1 })
   @ApiOkResponse({ description: 'Categoria eliminada', type: CategoriaResponseDto })
   @ApiNotFoundResponse({ description: 'Categoria no encontrada', type: ErrorResponseDto })
