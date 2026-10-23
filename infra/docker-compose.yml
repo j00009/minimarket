@@ -9,7 +9,15 @@ services:
     ports:
       - "5431:5432"
     volumes:
-      - pgdata:/var/lib/postgresql
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   pgdata:
+    external: true
+    name: f395315bcf913a181905b6ce81c42f73660a5ceb5a41e1d45497219f3190d096
