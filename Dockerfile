@@ -35,6 +35,7 @@ COPY apps/web/package.json ./apps/web/package.json
 
 RUN pnpm install --filter api... --prod --frozen-lockfile
 RUN pnpm --filter api deploy --prod /prod/api
+RUN pnpm add --dir /prod/api prisma@7.8.0
 RUN node -e "const fs=require('fs');const path=require('path');const modules='/prod/api/node_modules';const virtualStore=path.join(modules,'.pnpm');const target=fs.readdirSync(virtualStore).find(name=>name.startsWith('@prisma+client@7.8.0_'));if(!target)throw new Error('Prisma Client 7.8.0 missing from deployed production dependencies');const link=path.join(modules,'@prisma/client');fs.rmSync(link,{recursive:true,force:true});fs.symlinkSync(path.join('..','.pnpm',target,'node_modules/@prisma/client'),link,'dir');"
 
 FROM node:22-bookworm-slim AS runner
