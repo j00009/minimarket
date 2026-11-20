@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: minimarket-db
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: minimarket
+    ports:
+      - "5431:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  pgdata:

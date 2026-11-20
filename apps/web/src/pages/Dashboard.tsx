@@ -1,231 +1,69 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { apiFetch } from '../api/client';
 import Alert from '../components/Alert';
 
 type MetodoPago = 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
+type Rango = 'HOY' | '7D' | '30D' | 'PERSONALIZADO';
+interface Venta { id: number; total: number; metodoPago?: MetodoPago; createdAt: string; detalles?: { productoId: number; cantidad: number; subtotal: number; producto?: { nombre: string } }[]; }
+interface ProductoStock { id: number; codigoBarra?: string | null; nombre: string; stock: number; stockMinimo: number; }
 
-interface Venta {
-  id: number;
-  total: number;
-  descuentoTotal: number;
-  metodoPago?: MetodoPago;
-  createdAt: string;
-  detalles?: {
-    productoId: number;
-    cantidad: number;
-    subtotal: number;
-    producto?: { nombre: string };
-  }[];
+const pagos: Record<MetodoPago, { label: string; color: string }> = {
+  EFECTIVO: { label: 'Efectivo', color: '#20a46b' }, TARJETA: { label: 'Tarjeta', color: '#6574f7' }, TRANSFERENCIA: { label: 'Transferencia', color: '#e66a90' },
+};
+const money = (value: number) => value.toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 });
+const dayKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const shortDay = (date: Date) => date.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric' }).replace('.', '');
+
+function useCountUp(target: number) {
+  const [value, setValue] = useState(target);
+  useEffect(() => {
+    const from = value; const started = performance.now(); let frame = 0;
+    const animate = (now: number) => { const p = Math.min((now - started) / 550, 1); setValue(from + (target - from) * (1 - (1 - p) ** 3)); if (p < 1) frame = requestAnimationFrame(animate); };
+    frame = requestAnimationFrame(animate); return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
+  return value;
 }
 
-interface ProductoStock {
-  id: number;
-  codigoBarra?: string | null;
-  nombre: string;
-  stock: number;
-  stockMinimo: number;
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  const max = Math.max(...values, 1); const points = values.map((v, i) => `${i * (100 / Math.max(values.length - 1, 1))},${32 - (v / max) * 26}`).join(' ');
+  return <svg className="insight-sparkline" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true"><polyline points={`0,36 ${points} 100,36`} fill={`${color}18`} /><polyline points={points} fill="none" stroke={color} strokeWidth="2.5" vectorEffect="non-scaling-stroke" /></svg>;
 }
-
-const formatMoney = (value: number) =>
-  value.toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 });
-
-const sameMonth = (date: Date, now: Date) =>
-  date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
-
-const dayKey = (date: Date) => date.toISOString().slice(0, 10);
-
-const shortDay = (date: Date) =>
-  date.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit' }).replace('.', '');
+function Skeleton() { return <div className="insights-skeleton" aria-label="Cargando métricas"><div className="insights-skeleton-toolbar" /><div className="insights-kpi-grid">{[0, 1, 2, 3].map((i) => <div key={i} className="insights-skeleton-card" />)}</div><div className="insights-skeleton-chart" /></div>; }
 
 export default function Dashboard() {
-  const [ventas, setVentas] = useState<Venta[]>([]);
-  const [stockBajo, setStockBajo] = useState<ProductoStock[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [ventas, setVentas] = useState<Venta[]>([]); const [stockBajo, setStockBajo] = useState<ProductoStock[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
+  const [rango, setRango] = useState<Rango>('7D'); const [desde, setDesde] = useState(''); const [hasta, setHasta] = useState(''); const [medio, setMedio] = useState<'TODOS' | MetodoPago>('TODOS');
+  const [activos, setActivos] = useState<Set<MetodoPago>>(new Set(['EFECTIVO', 'TARJETA', 'TRANSFERENCIA'])); const [hovered, setHovered] = useState<number | null>(null);
+  const cargar = async () => { try { setLoading(true); setError(''); const [sales, stock] = await Promise.all([apiFetch<Venta[]>('/ventas'), apiFetch<ProductoStock[]>('/productos/alertas/stock-bajo')]); setVentas(sales); setStockBajo(stock.filter((p) => p.stock < 5)); } catch (caught: unknown) { setError(caught instanceof Error ? caught.message : 'No fue posible cargar el dashboard.'); } finally { setLoading(false); } };
+  useEffect(() => { const timer = window.setTimeout(() => { void cargar(); }, 0); return () => window.clearTimeout(timer); }, []);
 
-  const cargar = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const [ventasData, stockData] = await Promise.all([
-        apiFetch<Venta[]>('/ventas'),
-        apiFetch<ProductoStock[]>('/productos/alertas/stock-bajo'),
-      ]);
-      setVentas(ventasData);
-      setStockBajo(stockData.filter((producto) => producto.stock < 5));
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const periodo = useMemo(() => { const end = new Date(); end.setHours(23, 59, 59, 999); let start = new Date(); start.setHours(0, 0, 0, 0); if (rango === '7D') start.setDate(start.getDate() - 6); if (rango === '30D') start.setDate(start.getDate() - 29); if (rango === 'PERSONALIZADO' && desde) start = new Date(`${desde}T00:00:00`); const customEnd = rango === 'PERSONALIZADO' && hasta ? new Date(`${hasta}T23:59:59.999`) : end; return { start, end: customEnd, days: Math.max(1, Math.ceil((customEnd.getTime() - start.getTime()) / 86400000) + 1) }; }, [rango, desde, hasta]);
+  const filtered = useMemo(() => ventas.filter((sale) => { const date = new Date(sale.createdAt); return date >= periodo.start && date <= periodo.end && (medio === 'TODOS' || (sale.metodoPago ?? 'EFECTIVO') === medio); }), [ventas, periodo, medio]);
+  const previous = useMemo(() => { const end = new Date(periodo.start); end.setMilliseconds(-1); const start = new Date(end); start.setDate(start.getDate() - periodo.days + 1); start.setHours(0, 0, 0, 0); return ventas.filter((sale) => { const date = new Date(sale.createdAt); return date >= start && date <= end && (medio === 'TODOS' || (sale.metodoPago ?? 'EFECTIVO') === medio); }); }, [ventas, periodo, medio]);
+  const daily = useMemo(() => Array.from({ length: periodo.days }, (_, i) => { const d = new Date(periodo.start); d.setDate(d.getDate() + i); const sales = filtered.filter((sale) => dayKey(new Date(sale.createdAt)) === dayKey(d) && activos.has(sale.metodoPago ?? 'EFECTIVO')); return { label: shortDay(d), total: sales.reduce((sum, sale) => sum + sale.total, 0), count: sales.length }; }), [periodo, filtered, activos]);
+  const total = filtered.reduce((sum, sale) => sum + sale.total, 0); const prevTotal = previous.reduce((sum, sale) => sum + sale.total, 0); const average = filtered.length ? total / filtered.length : 0;
+  const units = filtered.reduce((sum, sale) => sum + (sale.detalles?.reduce((count, item) => count + item.cantidad, 0) ?? 0), 0); const prevUnits = previous.reduce((sum, sale) => sum + (sale.detalles?.reduce((count, item) => count + item.cantidad, 0) ?? 0), 0);
+  const change = (current: number, last: number) => last ? (current - last) / last * 100 : current ? 100 : 0;
+  const stats = (Object.keys(pagos) as MetodoPago[]).map((key) => ({ key, ...pagos[key], total: filtered.filter((sale) => (sale.metodoPago ?? 'EFECTIVO') === key).reduce((sum, sale) => sum + sale.total, 0) })); const totalPayments = stats.reduce((sum, stat) => sum + stat.total, 0); const visiblePaymentTotal = stats.filter((stat) => activos.has(stat.key)).reduce((sum, stat) => sum + stat.total, 0);
+  const topProducts = useMemo(() => { const sums = new Map<string, number>(); filtered.forEach((sale) => sale.detalles?.forEach((item) => { const name = item.producto?.nombre ?? `Producto #${item.productoId}`; sums.set(name, (sums.get(name) ?? 0) + item.subtotal); })); return [...sums].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 5); }, [filtered]);
+  const maxDay = Math.max(...daily.map((day) => day.total), 1); const maxProduct = Math.max(...topProducts.map((item) => item.total), 1);
+  const points = daily.map((day, i) => ({ x: 42 + i * (616 / Math.max(daily.length - 1, 1)), y: 206 - day.total / maxDay * 158 })); const line = points.reduce((path, p, i) => i ? `${path} L ${p.x} ${p.y}` : `M ${p.x} ${p.y}`, '');
+  const exported = () => { const rows = [['ID', 'Fecha', 'Método', 'Total'], ...filtered.map((sale) => [String(sale.id), new Date(sale.createdAt).toLocaleString('es-CL'), pagos[sale.metodoPago ?? 'EFECTIVO'].label, String(sale.total)])]; const csv = rows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(',')).join('\n'); const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `ventas-${dayKey(new Date())}.csv`; anchor.click(); URL.revokeObjectURL(url); };
+  const toggle = (key: MetodoPago) => setActivos((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+  const kpis = [{ label: 'Ventas netas', value: money(useCountUp(total)), change: change(total, prevTotal), hint: 'Suma de ventas aprobadas en el período.', icon: '⌁', color: '#6574f7' }, { label: 'Transacciones', value: Math.round(useCountUp(filtered.length)).toLocaleString('es-CL'), change: change(filtered.length, previous.length), hint: 'Comprobantes generados en el período.', icon: '▣', color: '#20a46b' }, { label: 'Ticket promedio', value: money(useCountUp(average)), change: change(average, previous.length ? prevTotal / previous.length : 0), hint: 'Monto promedio por cada transacción.', icon: '◌', color: '#e66a90' }, { label: 'Unidades vendidas', value: Math.round(useCountUp(units)).toLocaleString('es-CL'), change: change(units, prevUnits), hint: 'Unidades incluidas en ventas.', icon: '◫', color: '#e49a35' }];
+  if (loading) return <main className="page dashboard-page"><Skeleton /></main>;
 
-  useEffect(() => {
-    cargar();
-  }, []);
-
-  const metricas = useMemo(() => {
-    const now = new Date();
-    const ventasMes = ventas.filter((venta) => sameMonth(new Date(venta.createdAt), now));
-    const totalVentas = ventasMes.reduce((acc, venta) => acc + venta.total, 0);
-    const numeroVentas = ventasMes.length;
-    const ticketPromedio = numeroVentas ? totalVentas / numeroVentas : 0;
-    const unidadesPorProducto = new Map<string, number>();
-
-    for (const venta of ventasMes) {
-      for (const detalle of venta.detalles ?? []) {
-        const nombre = detalle.producto?.nombre ?? `Producto #${detalle.productoId}`;
-        unidadesPorProducto.set(nombre, (unidadesPorProducto.get(nombre) ?? 0) + detalle.cantidad);
-      }
-    }
-
-    return {
-      totalVentas,
-      numeroVentas,
-      ticketPromedio,
-      productoMasVendido: [...unidadesPorProducto.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Sin ventas',
-    };
-  }, [ventas]);
-
-  const ventasSemana = useMemo(() => {
-    const today = new Date();
-    const days = Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(today);
-      date.setDate(today.getDate() - (6 - index));
-      return { key: dayKey(date), label: shortDay(date), total: 0 };
-    });
-
-    for (const venta of ventas) {
-      const day = days.find((item) => item.key === dayKey(new Date(venta.createdAt)));
-      if (day) day.total += venta.total;
-    }
-    return days;
-  }, [ventas]);
-
-  const topProductos = useMemo(() => {
-    const ingresos = new Map<string, number>();
-    for (const venta of ventas) {
-      for (const detalle of venta.detalles ?? []) {
-        const nombre = detalle.producto?.nombre ?? `Producto #${detalle.productoId}`;
-        ingresos.set(nombre, (ingresos.get(nombre) ?? 0) + detalle.subtotal);
-      }
-    }
-    return [...ingresos.entries()]
-      .map(([nombre, total]) => ({ nombre, total }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
-  }, [ventas]);
-
-  const metodosPago = useMemo(() => {
-    const totals: Record<MetodoPago, number> = { EFECTIVO: 0, TARJETA: 0, TRANSFERENCIA: 0 };
-    for (const venta of ventas) totals[venta.metodoPago ?? 'EFECTIVO'] += venta.total;
-    return [
-      { label: 'Efectivo', key: 'EFECTIVO' as MetodoPago, total: totals.EFECTIVO, color: '#198754' },
-      { label: 'Tarjeta', key: 'TARJETA' as MetodoPago, total: totals.TARJETA, color: '#e94560' },
-      { label: 'Transferencia', key: 'TRANSFERENCIA' as MetodoPago, total: totals.TRANSFERENCIA, color: '#2563eb' },
-    ];
-  }, [ventas]);
-
-  const maxSemana = Math.max(...ventasSemana.map((day) => day.total), 1);
-  const maxProducto = Math.max(...topProductos.map((producto) => producto.total), 1);
-  const totalMetodos = metodosPago.reduce((acc, metodo) => acc + metodo.total, 0);
-  let donutOffset = 25;
-
-  if (loading) return <div className="loading">Cargando dashboard...</div>;
-
-  return (
-    <div className="page dashboard-page">
-      <div className="page-header">
-        <div>
-          <h2>Dashboard</h2>
-          <p className="page-subtitle">Resumen del mes, ventas recientes e inventario critico</p>
-        </div>
-      </div>
-
-      {error && <Alert message={error} onClose={() => setError('')} />}
-
-      <div className="kpi-grid">
-        <article className="kpi-card"><span>Ventas totales</span><strong>{formatMoney(metricas.totalVentas)}</strong><small>Mes actual</small></article>
-        <article className="kpi-card"><span>Numero de ventas</span><strong>{metricas.numeroVentas.toLocaleString('es-CL')}</strong><small>Tickets generados</small></article>
-        <article className="kpi-card"><span>Producto mas vendido</span><strong>{metricas.productoMasVendido}</strong><small>Por unidades</small></article>
-        <article className="kpi-card"><span>Ticket promedio</span><strong>{formatMoney(metricas.ticketPromedio)}</strong><small>Venta media</small></article>
-      </div>
-
-      <div className="dashboard-grid">
-        <section className="dashboard-panel dashboard-panel-wide">
-          <div className="dashboard-panel-header"><h3>Ventas en el tiempo</h3><span>Ultimos 7 dias</span></div>
-          <div className="line-chart">
-            <svg viewBox="0 0 700 260" role="img" aria-label="Grafico de ventas de la semana">
-              <polyline className="chart-grid-line" points="40,30 680,30 680,210 40,210 40,30" />
-              <polyline
-                className="line-chart-path"
-                points={ventasSemana.map((day, index) => `${40 + index * (640 / 6)},${210 - (day.total / maxSemana) * 170}`).join(' ')}
-              />
-              {ventasSemana.map((day, index) => {
-                const x = 40 + index * (640 / 6);
-                const y = 210 - (day.total / maxSemana) * 170;
-                return (
-                  <g key={day.key}>
-                    <circle className="line-chart-dot" cx={x} cy={y} r="5" />
-                    <text x={x} y="236" textAnchor="middle">{day.label}</text>
-                    <text x={x} y={Math.max(y - 12, 18)} textAnchor="middle">{formatMoney(day.total)}</text>
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-        </section>
-
-        <section className="dashboard-panel">
-          <div className="dashboard-panel-header"><h3>Top 5 productos</h3><span>Ingresos</span></div>
-          <div className="bar-chart">
-            {topProductos.length === 0 && <p className="empty-state">No hay ventas registradas.</p>}
-            {topProductos.map((producto) => (
-              <div className="bar-row" key={producto.nombre}>
-                <div><span>{producto.nombre}</span><strong>{formatMoney(producto.total)}</strong></div>
-                <div className="bar-track"><span style={{ width: `${Math.max((producto.total / maxProducto) * 100, 4)}%` }} /></div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="dashboard-panel">
-          <div className="dashboard-panel-header"><h3>Metodos de pago</h3><span>Distribucion</span></div>
-          <div className="donut-wrap">
-            <svg viewBox="0 0 42 42" className="donut-chart" role="img" aria-label="Grafico de metodos de pago">
-              <circle className="donut-bg" cx="21" cy="21" r="15.915" />
-              {metodosPago.map((metodo) => {
-                const percent = totalMetodos ? (metodo.total / totalMetodos) * 100 : 0;
-                const segment = (
-                  <circle key={metodo.key} className="donut-segment" cx="21" cy="21" r="15.915" stroke={metodo.color} strokeDasharray={`${percent} ${100 - percent}`} strokeDashoffset={donutOffset} />
-                );
-                donutOffset -= percent;
-                return segment;
-              })}
-            </svg>
-            <div className="donut-legend">
-              {metodosPago.map((metodo) => (
-                <div key={metodo.key}><span style={{ background: metodo.color }} /><strong>{metodo.label}</strong><em>{formatMoney(metodo.total)}</em></div>
-              ))}
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <section className="dashboard-panel inventory-alerts">
-        <div className="dashboard-panel-header"><h3>Productos por agotarse</h3><span>Menos de 5 unidades</span></div>
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Producto</th><th>Codigo</th><th>Stock</th><th>Minimo</th></tr></thead>
-            <tbody>
-              {stockBajo.slice(0, 12).map((producto) => (
-                <tr key={producto.id}><td>{producto.nombre}</td><td>{producto.codigoBarra || '-'}</td><td><span className="badge badge-red">{producto.stock}</span></td><td>{producto.stockMinimo}</td></tr>
-              ))}
-              {stockBajo.length === 0 && <tr><td colSpan={4}><div className="empty-cart">No hay productos bajo 5 unidades.</div></td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  );
+  return <main className="page dashboard-page insights-page">
+    <header className="insights-header"><div><p className="insights-eyebrow">ANALÍTICA DE NEGOCIO</p><h2>Vista general</h2><p className="page-subtitle">Decisiones ágiles, basadas en el desempeño de tu caja.</p></div><button className="insight-icon-button" type="button" onClick={cargar} title="Actualizar métricas" aria-label="Actualizar métricas">↻</button></header>
+    {error && <Alert message={error} onClose={() => setError('')} />}
+    <section className="insight-toolbar"><div className="insight-range">{([{ key: 'HOY', label: 'Hoy' }, { key: '7D', label: '7 días' }, { key: '30D', label: '30 días' }, { key: 'PERSONALIZADO', label: 'Personalizado' }] as { key: Rango; label: string }[]).map((item) => <button key={item.key} type="button" className={rango === item.key ? 'is-active' : ''} onClick={() => setRango(item.key)}>{item.label}</button>)}</div>{rango === 'PERSONALIZADO' && <div className="insight-date-inputs"><input type="date" aria-label="Fecha de inicio" value={desde} onChange={(e) => setDesde(e.target.value)} /><span>—</span><input type="date" aria-label="Fecha de término" value={hasta} onChange={(e) => setHasta(e.target.value)} /></div>}<div className="insight-payment-filter"><label htmlFor="payment-filter">Estado</label><select id="payment-filter" value={medio} onChange={(e) => setMedio(e.target.value as 'TODOS' | MetodoPago)}><option value="TODOS">Todos los pagos</option>{(Object.keys(pagos) as MetodoPago[]).map((key) => <option key={key} value={key}>{pagos[key].label}</option>)}</select></div><button className="insight-export" type="button" onClick={exported}>↓ Exportar</button></section>
+    <section className="insights-kpi-grid">{kpis.map((kpi, index) => <article key={kpi.label} className="insight-kpi" style={{ '--accent': kpi.color, '--delay': `${index * 70}ms` } as CSSProperties}><div className="insight-kpi-top"><span className="insight-kpi-icon">{kpi.icon}</span><span className="insight-tooltip" tabIndex={0}>i<span>{kpi.hint}</span></span></div><p>{kpi.label}</p><strong>{kpi.value}</strong><div className="insight-kpi-bottom"><b className={kpi.change >= 0 ? 'positive' : 'negative'}>{kpi.change >= 0 ? '↗' : '↘'} {Math.abs(kpi.change).toFixed(1)}%</b><span>vs. período ant.</span></div><Sparkline values={daily.map((day) => day.total || index + 1)} color={kpi.color} /></article>)}</section>
+    <section className="insights-grid">
+      <article className="insight-panel insight-sales-panel"><div className="insight-panel-heading"><div><p>RENDIMIENTO</p><h3>Ventas en el tiempo</h3></div><span>{money(total)}</span></div><div className="insight-chart-wrap"><svg className="insight-line-chart" viewBox="0 0 700 255" role="img" aria-label="Ventas por día"><line x1="42" y1="48" x2="658" y2="48" /><line x1="42" y1="127" x2="658" y2="127" /><line x1="42" y1="206" x2="658" y2="206" /><path className="insight-area" d={`${line} L 658 206 L 42 206 Z`} /><path className="insight-line" d={line} />{points.map((point, i) => <g key={`${daily[i].label}-${i}`} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}><rect className="insight-hit-area" x={point.x - 18} y="25" width="36" height="192" /><circle className="insight-dot" cx={point.x} cy={point.y} r={hovered === i ? 6 : 4} /><text x={point.x} y="237" textAnchor="middle">{daily[i].label}</text></g>)}</svg>{hovered !== null && <div className="insight-chart-tooltip" style={{ left: `${points[hovered].x / 7}%`, top: `${points[hovered].y / 2.55}%` }}><strong>{daily[hovered].label}</strong><span>{money(daily[hovered].total)}</span><small>{daily[hovered].count} ventas</small></div>}</div><div className="insight-chart-foot"><span>Haz hover en un punto para ver el detalle.</span><strong>{daily.reduce((sum, day) => sum + day.count, 0)} comprobantes</strong></div></article>
+      <article className="insight-panel"><div className="insight-panel-heading"><div><p>CANAL DE PAGO</p><h3>Distribución de ingresos</h3></div><span>{money(visiblePaymentTotal)}</span></div><div className="insight-donut-layout"><div className="insight-donut" style={{ background: `conic-gradient(${stats.filter((stat) => activos.has(stat.key)).map((stat) => `${stat.color} ${visiblePaymentTotal ? stat.total / visiblePaymentTotal * 100 : 0}%`).join(', ') || 'var(--surface-muted) 0 100%'}` }}><div><strong>{visiblePaymentTotal ? '100%' : '—'}</strong><span>ingresos</span></div></div><div className="insight-legend">{stats.map((stat) => <button key={stat.key} type="button" onClick={() => toggle(stat.key)} className={activos.has(stat.key) ? '' : 'is-hidden'}><i style={{ background: stat.color }} /><span>{stat.label}</span><strong>{totalPayments ? `${Math.round(stat.total / totalPayments * 100)}%` : '0%'}</strong><small>{money(stat.total)}</small></button>)}</div></div></article>
+      <article className="insight-panel"><div className="insight-panel-heading"><div><p>PRODUCTOS</p><h3>Mayor aporte</h3></div><span>Top 5</span></div><div className="insight-products">{topProducts.length ? topProducts.map((product, index) => <div className="insight-product-row" key={product.name}><span>{String(index + 1).padStart(2, '0')}</span><div><strong title={product.name}>{product.name}</strong><i><b style={{ width: `${product.total / maxProduct * 100}%` }} /></i></div><em>{money(product.total)}</em></div>) : <p className="empty-state">No hay ventas para este filtro.</p>}</div></article>
+      <article className="insight-panel insight-stock-panel"><div className="insight-panel-heading"><div><p>INVENTARIO</p><h3>Atención requerida</h3></div><span className={stockBajo.length ? 'insight-alert-count' : ''}>{stockBajo.length} críticos</span></div><div className="insight-stock-list">{stockBajo.slice(0, 5).map((p) => <div key={p.id}><div><strong>{p.nombre}</strong><span>{p.codigoBarra || 'Sin código'}</span></div><b>{p.stock}<small> / mín. {p.stockMinimo}</small></b></div>)}{!stockBajo.length && <p className="empty-state">Todo el inventario está en niveles saludables.</p>}</div></article>
+    </section>
+  </main>;
 }

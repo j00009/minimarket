@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../api/client';
 import Modal from '../components/Modal';
 import Alert from '../components/Alert';
+import ReceiptPrinterAnimation, { type ReceiptSaleData } from '../components/ReceiptPrinterAnimation';
 
 type MetodoPago = 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA';
 
@@ -423,16 +424,23 @@ export default function Ventas() {
         </Modal>
       )}
 
-      {showTicket && ventaCerrada && (
-        <Modal title={`Ticket venta #${ventaCerrada.id}`} onClose={() => setShowTicket(false)}>
-          <div className="ticket-print">
-            <h3>Minimarket</h3><p>Venta #{ventaCerrada.id}</p><p>{new Date(ventaCerrada.createdAt).toLocaleString('es-CL')}</p><hr />
-            {ventaCerrada.detalles?.map((detalle) => <div key={`${detalle.productoId}-${detalle.cantidad}`} className="ticket-line"><span>{detalle.producto?.nombre ?? `Producto #${detalle.productoId}`} x{detalle.cantidad}</span><strong>{formatMoney(detalle.subtotal)}</strong></div>)}
-            <hr /><div className="ticket-line"><span>Descuento</span><strong>{formatMoney(ventaCerrada.descuentoTotal)}</strong></div><div className="ticket-line ticket-total"><span>Total</span><strong>{formatMoney(ventaCerrada.total)}</strong></div>
-          </div>
-          <div className="modal-actions"><button className="btn btn-secondary" onClick={() => setShowTicket(false)}>Cerrar</button><button className="btn btn-primary" onClick={() => window.print()}>Imprimir ticket</button></div>
-        </Modal>
-      )}
+      <ReceiptPrinterAnimation
+        isOpen={showTicket}
+        autoClose={true}
+        saleData={ventaCerrada ? {
+          transactionId: ventaCerrada.id,
+          total: ventaCerrada.total,
+          discount: ventaCerrada.descuentoTotal,
+          createdAt: ventaCerrada.createdAt,
+          items: (ventaCerrada.detalles ?? []).map((detalle) => ({
+            id: detalle.productoId,
+            name: detalle.producto?.nombre ?? `Producto #${detalle.productoId}`,
+            quantity: detalle.cantidad,
+            subtotal: detalle.subtotal,
+          })),
+        } satisfies ReceiptSaleData : null}
+        onComplete={() => setShowTicket(false)}
+      />
     </div>
   );
 }

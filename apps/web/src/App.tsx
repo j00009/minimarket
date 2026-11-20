@@ -3,16 +3,6 @@ import { Outlet } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import { AuthProvider } from './auth/AuthContext';
 
-
-
-type Task = {
-  id: string;
-  title: string;
-  description?: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH';
-  dueDate?: string | null;
-}
-
 function App() {
   const [darkMode, setDarkMode] = useState(() => {
     const savedTheme = localStorage.getItem('theme');

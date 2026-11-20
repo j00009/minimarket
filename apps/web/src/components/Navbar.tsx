@@ -13,7 +13,7 @@ export default function Navbar({ darkMode, onToggleTheme }: NavbarProps) {
 
   return (
     <nav className="navbar">
-      <h1>Minimarket</h1>
+      <h1>Nexus</h1>
       {user && (
         <>
           {puedeVerDashboard && <NavLink to="/api/dashboard">Dashboard</NavLink>}

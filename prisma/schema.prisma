@@ -4,9 +4,173 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
 }
-
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Categoria {
+  id          Int        @id @default(autoincrement())
+  nombre      String     @unique
+  descripcion String?
+  descuento   Float      @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  productos   Producto[]
+}
+
+model Proveedor {
+  id        Int        @id @default(autoincrement())
+  nombre    String
+  telefono  String?
+  email     String?    @unique
+  direccion String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  productos Producto[]
+}
+
+model Producto {
+  id            Int            @id @default(autoincrement())
+  codigoBarra   String?        @unique
+  nombre        String
+  descripcion   String?
+  precio        Float
+  stock         Int            @default(0)
+  stockMinimo   Int            @default(5)
+  descuento     Float          @default(0)
+  categoriaId   Int
+  proveedorId   Int
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  categoria     Categoria      @relation(fields: [categoriaId], references: [id])
+  proveedor     Proveedor      @relation(fields: [proveedorId], references: [id])
+  detalleVentas DetalleVenta[]
+  movimientos   Movimiento[]
+
+  @@index([categoriaId])
+  @@index([precio])
+  @@index([stock])
+}
+
+model Venta {
+  id                     Int            @id @default(autoincrement())
+  total                  Float
+  descuentoTotal         Float          @default(0)
+  metodoPago             MetodoPago     @default(EFECTIVO)
+  tieneStockInsuficiente Boolean        @default(false)
+  userId                 Int
+  autorizadoPorId        Int?
+  motivoAutorizacion     String?
+  createdAt              DateTime       @default(now())
+  detalles               DetalleVenta[]
+  user                   Usuario        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model DetalleVenta {
+  id                Int      @id @default(autoincrement())
+  ventaId           Int
+  productoId        Int
+  cantidad          Int
+  precioUnit        Float
+  descuento         Float    @default(0)
+  subtotal          Float
+  stockInsuficiente Boolean  @default(false)
+
+  venta    Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  producto Producto @relation(fields: [productoId], references: [id])
+}
+
+model Movimiento {
+  id           Int            @id @default(autoincrement())
+  productoId   Int
+  tipo         TipoMovimiento
+  cantidad     Int
+  motivo       String?
+  stockAntes   Int
+  stockDespues Int
+  createdAt    DateTime       @default(now())
+
+  producto     Producto       @relation(fields: [productoId], references: [id])
+}
+
+model Usuario {
+  id                  Int          @id @default(autoincrement())
+  nombre              String
+  email               String       @unique
+  passwordHash        String
+  pinAutorizacionHash String?
+  rolId               Int
+  rol                 Rol          @relation(fields: [rolId], references: [id])
+  activo              Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  ventas        Venta[]
+  refreshTokens RefreshToken[]
+
+  @@index([rolId])
+}
+
+model RefreshToken {
+  id                String   @id @default(uuid())
+  tokenHash         String
+  expiresAt         DateTime
+  revoked           Boolean  @default(false)
+  replacedByTokenId String?
+  usuarioId         Int
+  createdAt         DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+}
+
+model Rol {
+  id          Int          @id @default(autoincrement())
+  codigo      String       @unique
+  nombre      String
+  descripcion String?
+  activo      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  usuarios    Usuario[]
+  permisos    RolPermiso[]
+}
+
+model Permiso {
+  id          Int          @id @default(autoincrement())
+  codigo      String       @unique
+  modulo      String
+  descripcion String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  roles       RolPermiso[]
+}
+
+model RolPermiso {
+  rolId     Int
+  permisoId Int
+  rol       Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  permiso   Permiso @relation(fields: [permisoId], references: [id], onDelete: Cascade)
+
+  @@id([rolId, permisoId])
+  @@index([permisoId])
+}
+
+enum TipoMovimiento {
+  ENTRADA
+  SALIDA
+  AJUSTE
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TARJETA
+  TRANSFERENCIA
 }
