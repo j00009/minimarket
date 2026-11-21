@@ -14,10 +14,22 @@
       `http://localhost:${process.env.FRONTEND_PORT ?? 5173}`,
       `http://127.0.0.1:${process.env.FRONTEND_PORT ?? 5173}`,
       process.env.FRONTEND_URL,
+      'https://minimarket-web-gi8s.onrender.com',
     ].filter((origin): origin is string => Boolean(origin));
 
     app.enableCors({
-      origin: allowedOrigins,
+      origin: (origin, callback) => {
+        const isLocalDevelopmentOrigin =
+          process.env.NODE_ENV !== 'production' &&
+          /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin ?? '');
+
+        if (!origin || allowedOrigins.includes(origin) || isLocalDevelopmentOrigin) {
+          callback(null, true);
+          return;
+        }
+
+        callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+      },
       methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     });
